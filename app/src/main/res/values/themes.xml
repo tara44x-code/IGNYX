@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ignyx_night">#05060F</color>
+    <color name="ic_launcher_background">#0A0D1C</color>
+
+    <style name="Theme.Ignyx" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ignyx_night</item>
+        <item name="android:statusBarColor">@color/ignyx_night</item>
+        <item name="android:navigationBarColor">@color/ignyx_night</item>
+    </style>
+</resources>

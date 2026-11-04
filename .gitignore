@@ -1,0 +1,11 @@
+.gradle/
+build/
+/local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+# Fonts are downloaded at build time (see app/build.gradle.kts)
+app/src/main/res/font/*.ttf

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- IGNYX icon: neon USB stick with a lightning bolt.
+     Drawn on a 108dp canvas; artwork kept inside the 66dp safe zone (offset 21). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:translateX="18" android:translateY="18" android:scaleX="0.6" android:scaleY="0.6">
+        <!-- soft glow -->
+        <path android:pathData="M46,17h28a3,3 0,0 1,3 3v19h-34v-19a3,3 0,0 1,3 -3z"
+            android:strokeColor="#5522F1FF" android:strokeWidth="12" android:fillColor="#00000000" android:strokeLineJoin="round" />
+        <path android:pathData="M49,39h22a12,12 0,0 1,12 12v40a12,12 0,0 1,-12 12h-22a12,12 0,0 1,-12 -12v-40a12,12 0,0 1,12 -12z"
+            android:strokeColor="#5522F1FF" android:strokeWidth="12" android:fillColor="#00000000" android:strokeLineJoin="round" />
+        <!-- connector -->
+        <path android:pathData="M46,17h28a3,3 0,0 1,3 3v19h-34v-19a3,3 0,0 1,3 -3z"
+            android:strokeColor="#22F1FF" android:strokeWidth="5" android:fillColor="#00000000" android:strokeLineJoin="round" />
+        <path android:pathData="M52,23h5v7h-5z M63,23h5v7h-5z" android:fillColor="#22F1FF" />
+        <!-- body -->
+        <path android:pathData="M49,39h22a12,12 0,0 1,12 12v40a12,12 0,0 1,-12 12h-22a12,12 0,0 1,-12 -12v-40a12,12 0,0 1,12 -12z"
+            android:strokeColor="#22F1FF" android:strokeWidth="5" android:fillColor="#00000000" android:strokeLineJoin="round" />
+        <!-- bolt -->
+        <path android:pathData="M65,49 L50,75 H60 L55,95 L72,66 H62 L67,49 Z" android:fillColor="#FF3DCB" />
+    </group>
+</vector>
