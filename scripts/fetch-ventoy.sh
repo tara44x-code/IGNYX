@@ -13,14 +13,14 @@ if [[ -n "${GITHUB_TOKEN:-}" ]]; then AUTH=(-H "Authorization: Bearer ${GITHUB_T
 
 VER="${VENTOY_VERSION:-}"
 if [[ -z "$VER" ]]; then
-  VER=$(curl -fsSL "${AUTH[@]}" https://api.github.com/repos/ventoy/Ventoy/releases/latest \
+  VER=$(curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 "${AUTH[@]}" https://api.github.com/repos/ventoy/Ventoy/releases/latest \
         | python3 -c 'import sys,json; print(json.load(sys.stdin)["tag_name"].lstrip("v"))')
 fi
 echo "Ventoy version: $VER"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-curl -fsSL -o "$TMP/ventoy.tar.gz" \
+curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$TMP/ventoy.tar.gz" \
   "https://github.com/ventoy/Ventoy/releases/download/v${VER}/ventoy-${VER}-linux.tar.gz"
 tar -xzf "$TMP/ventoy.tar.gz" -C "$TMP"
 SRC="$TMP/ventoy-${VER}"
