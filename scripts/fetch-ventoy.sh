@@ -17,11 +17,26 @@ if [[ -z "$VER" ]]; then
         | python3 -c 'import sys,json; print(json.load(sys.stdin)["tag_name"].lstrip("v"))')
 fi
 echo "Ventoy version: $VER"
+if [[ -f "$DEST/VERSION" && "$(cat "$DEST/VERSION")" == "$VER" && -f "$DEST/ventoy.disk.img.xz" ]]; then
+  echo "Already have Ventoy $VER (cached)"; ls -l "$DEST"; exit 0
+fi
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$TMP/ventoy.tar.gz" \
-  "https://github.com/ventoy/Ventoy/releases/download/v${VER}/ventoy-${VER}-linux.tar.gz"
+NAME="ventoy-${VER}-linux.tar.gz"
+download() {
+  # 1) the normal release URL
+  curl -fsSL --retry 4 --retry-all-errors --retry-delay 10 -o "$TMP/ventoy.tar.gz" \
+    "https://github.com/ventoy/Ventoy/releases/download/v${VER}/${NAME}" && return 0
+  echo "Direct download failed, trying the API asset endpoint"
+  # 2) the same file through the GitHub API
+  local id
+  id=$(curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/ventoy/Ventoy/releases/tags/v${VER}" \
+       | python3 -c "import sys,json; print(next(a['id'] for a in json.load(sys.stdin)['assets'] if a['name']=='${NAME}'))")
+  curl -fsSL --retry 4 --retry-all-errors --retry-delay 10 "${AUTH[@]}" -H "Accept: application/octet-stream" \
+    -o "$TMP/ventoy.tar.gz" "https://api.github.com/repos/ventoy/Ventoy/releases/assets/${id}"
+}
+download
 tar -xzf "$TMP/ventoy.tar.gz" -C "$TMP"
 SRC="$TMP/ventoy-${VER}"
 
