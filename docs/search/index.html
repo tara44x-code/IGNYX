@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>باحث شامل</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0f1115;--card:#181b22;--line:#262a33;--text:#e9ecf1;--muted:#8b93a1;--acc:#4f8cff;--acc2:#2a5bd7}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Cairo,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .wrap{max-width:760px;margin:0 auto;padding:28px 16px 60px}
+  h1{font-size:28px;font-weight:800;margin:8px 0 4px;text-align:center}
+  .sub{color:var(--muted);text-align:center;margin:0 0 22px;font-size:14px}
+  form{display:flex;gap:8px}
+  input[type=search]{flex:1;font:inherit;font-size:17px;padding:13px 16px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--text);outline:none}
+  input[type=search]:focus{border-color:var(--acc)}
+  button.go{font:inherit;font-weight:600;font-size:16px;padding:0 20px;border:0;border-radius:14px;background:var(--acc);color:#fff;cursor:pointer}
+  .opts{display:flex;gap:8px;margin:12px 0 4px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:13px}
+  select{font:inherit;font-size:13px;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:5px 8px}
+  .tabs{display:flex;gap:6px;overflow-x:auto;margin:18px 0 14px;padding-bottom:4px}
+  .tab{font:inherit;font-size:14px;white-space:nowrap;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+  .tab.on{background:var(--acc2);border-color:var(--acc2);color:#fff}
+  .section h2{font-size:15px;color:var(--muted);font-weight:600;margin:20px 0 8px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+  a.src{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;background:var(--card);border:1px solid var(--line);color:var(--text);text-decoration:none;transition:.15s}
+  a.src:hover{border-color:var(--acc);transform:translateY(-1px)}
+  .ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-weight:800;font-size:14px;color:#fff;flex-shrink:0}
+  .nm{font-size:14px;font-weight:600;line-height:1.2}
+  .ds{font-size:11px;color:var(--muted)}
+  .empty{color:var(--muted);text-align:center;padding:30px 0;font-size:14px}
+  .recent{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .chip{font:inherit;font-size:12px;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--muted);cursor:pointer}
+  .note{margin-top:30px;font-size:12px;color:var(--muted);line-height:1.8;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔎 باحث شامل</h1>
+  <p class="sub">اكتب مرة وحدة، وابحث بكل المصادر: مواقع، فيديو، صور، تورنت، سوشيال</p>
+
+  <form id="f">
+    <input type="search" id="q" placeholder="ابحث عن أي شي… أكلة، أغنية، خبر، فلم، برنامج" autocomplete="off">
+    <button class="go" type="submit">بحث</button>
+  </form>
+
+  <div class="opts">
+    <span>نوع الملف (للمواقع):</span>
+    <select id="ft">
+      <option value="">أي شي</option>
+      <option value="pdf">PDF</option>
+      <option value="doc">Word</option>
+      <option value="ppt">PowerPoint</option>
+      <option value="mp4">MP4</option>
+      <option value="mp3">MP3</option>
+    </select>
+  </div>
+  <div class="recent" id="recent"></div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="out"><div class="empty">اكتب كلمة واضغط بحث حتى تطلع لك روابط كل المصادر</div></div>
+
+  <div class="note">
+    هذي النسخة الأولية: كل زر يفتح نتائج بحثك بالموقع نفسه مباشرة.<br>
+    النسخة الجاية تحتاج سيرفر صغير يجيب النتائج ويعرضها هنا بقائمة وحدة.<br>
+    مصادر التورنت هنا قانونية (أرشيف الإنترنت وتورنتات أكاديمية).
+  </div>
+</div>
+
+<script>
+const E = encodeURIComponent;
+const SOURCES = {
+  web: {label:"🌐 مواقع", items:[
+    {n:"Google", d:"أكبر محرك", c:"#4285f4", u:q=>`https://www.google.com/search?q=${E(q)}`},
+    {n:"Bing", d:"مايكروسوفت", c:"#008373", u:q=>`https://www.bing.com/search?q=${E(q)}`},
+    {n:"DuckDuckGo", d:"بدون تتبع", c:"#de5833", u:q=>`https://duckduckgo.com/?q=${E(q)}`},
+    {n:"Brave", d:"فهرس مستقل", c:"#fb542b", u:q=>`https://search.brave.com/search?q=${E(q)}`},
+    {n:"Yandex", d:"روسي", c:"#fc3f1d", u:q=>`https://yandex.com/search/?text=${E(q)}`},
+    {n:"ويكيبيديا", d:"عربي", c:"#555", u:q=>`https://ar.wikipedia.org/w/index.php?search=${E(q)}`, raw:true},
+    {n:"Wikipedia", d:"English", c:"#777", u:q=>`https://en.wikipedia.org/w/index.php?search=${E(q)}`, raw:true},
+    {n:"Google Scholar", d:"أبحاث", c:"#3367d6", u:q=>`https://scholar.google.com/scholar?q=${E(q)}`, raw:true},
+  ]},
+  video: {label:"🎬 فيديو", items:[
+    {n:"YouTube", d:"فيديو", c:"#ff0000", u:q=>`https://www.youtube.com/results?search_query=${E(q)}`},
+    {n:"TikTok", d:"قصير", c:"#111", u:q=>`https://www.tiktok.com/search?q=${E(q)}`},
+    {n:"Google فيديو", d:"كل المواقع", c:"#4285f4", u:q=>`https://www.google.com/search?tbm=vid&q=${E(q)}`},
+    {n:"Vimeo", d:"جودة عالية", c:"#1ab7ea", u:q=>`https://vimeo.com/search?q=${E(q)}`},
+    {n:"Dailymotion", d:"فيديو", c:"#0066dc", u:q=>`https://www.dailymotion.com/search/${E(q)}`},
+    {n:"Bing فيديو", d:"فيديو", c:"#008373", u:q=>`https://www.bing.com/videos/search?q=${E(q)}`},
+    {n:"أرشيف الأفلام", d:"Archive.org", c:"#666", u:q=>`https://archive.org/search?query=${E(q)}&and%5B%5D=mediatype%3A%22movies%22`},
+  ]},
+  images: {label:"🖼️ صور", items:[
+    {n:"Google صور", d:"صور", c:"#4285f4", u:q=>`https://www.google.com/search?tbm=isch&q=${E(q)}`},
+    {n:"Bing صور", d:"صور", c:"#008373", u:q=>`https://www.bing.com/images/search?q=${E(q)}`},
+    {n:"Pinterest", d:"أفكار", c:"#e60023", u:q=>`https://www.pinterest.com/search/pins/?q=${E(q)}`},
+    {n:"Openverse", d:"صور مجانية", c:"#c52b9b", u:q=>`https://openverse.org/search/?q=${E(q)}`},
+    {n:"Unsplash", d:"صور مجانية", c:"#222", u:q=>`https://unsplash.com/s/photos/${E(q)}`},
+  ]},
+  torrent: {label:"🧲 تورنت", items:[
+    {n:"Internet Archive", d:"تورنت لكل ملف", c:"#666", u:q=>`https://archive.org/search?query=${E(q)}`},
+    {n:"Academic Torrents", d:"بيانات وكورسات", c:"#2e7d32", u:q=>`https://academictorrents.com/browse.php?search=${E(q)}`},
+    {n:"أرشيف الصوتيات", d:"Archive.org", c:"#8d6e63", u:q=>`https://archive.org/search?query=${E(q)}&and%5B%5D=mediatype%3A%22audio%22`},
+    {n:"أرشيف الكتب", d:"Archive.org", c:"#5d4037", u:q=>`https://archive.org/search?query=${E(q)}&and%5B%5D=mediatype%3A%22texts%22`},
+  ]},
+  social: {label:"💬 سوشيال", items:[
+    {n:"X", d:"تغريدات", c:"#111", u:q=>`https://x.com/search?q=${E(q)}`},
+    {n:"Reddit", d:"نقاشات", c:"#ff4500", u:q=>`https://www.reddit.com/search/?q=${E(q)}`},
+    {n:"Instagram", d:"هاشتاك", c:"#c13584", u:q=>`https://www.instagram.com/explore/tags/${E(q.replace(/\s+/g,''))}/`, raw:true},
+    {n:"Facebook", d:"منشورات", c:"#1877f2", u:q=>`https://www.facebook.com/search/top?q=${E(q)}`},
+    {n:"GitHub", d:"برامج", c:"#333", u:q=>`https://github.com/search?q=${E(q)}`, raw:true},
+  ]},
+};
+
+let tab = "all", lastQ = "";
+const $ = id => document.getElementById(id);
+
+function buildTabs(){
+  const t = [["all","الكل"], ...Object.entries(SOURCES).map(([k,v])=>[k,v.label])];
+  $("tabs").innerHTML = t.map(([k,l])=>`<button class="tab ${k===tab?'on':''}" data-k="${k}">${l}</button>`).join("");
+  $("tabs").querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=b.dataset.k;buildTabs();render();});
+}
+
+function decorate(q, s){
+  if (s.raw) return q;
+  let x = q;
+  const ft = $("ft").value;
+  if (ft && SOURCES.web.items.includes(s)) x += ` filetype:${ft}`;
+  return x;
+}
+
+function render(){
+  if(!lastQ){ return; }
+  const keys = tab==="all" ? Object.keys(SOURCES) : [tab];
+  $("out").innerHTML = keys.map(k=>{
+    const sec = SOURCES[k];
+    return `<div class="section"><h2>${sec.label}</h2><div class="grid">` +
+      sec.items.map(s=>`<a class="src" href="${s.u(decorate(lastQ,s))}" target="_blank" rel="noopener">
+        <span class="ic" style="background:${s.c}">${s.n[0]}</span>
+        <span><div class="nm">${s.n}</div><div class="ds">${s.d}</div></span></a>`).join("") +
+      `</div></div>`;
+  }).join("");
+}
+
+function loadRecent(){ try{ return JSON.parse(localStorage.getItem("recentQ")||"[]"); }catch(e){ return []; } }
+function saveRecent(q){
+  try{
+    const r = [q, ...loadRecent().filter(x=>x!==q)].slice(0,8);
+    localStorage.setItem("recentQ", JSON.stringify(r));
+  }catch(e){}
+  showRecent();
+}
+function showRecent(){
+  const r = loadRecent();
+  $("recent").innerHTML = r.map(x=>`<button class="chip">${x.replace(/</g,"&lt;")}</button>`).join("");
+  $("recent").querySelectorAll(".chip").forEach((b,i)=>b.onclick=()=>{ $("q").value=r[i]; go(); });
+}
+
+function go(){
+  const q = $("q").value.trim();
+  if(!q) return;
+  lastQ = q; saveRecent(q); render();
+}
+
+$("f").addEventListener("submit", e=>{ e.preventDefault(); go(); });
+$("ft").onchange = render;
+buildTabs(); showRecent();
+
+$("q").focus();
+</script>
+</body>
+</html>
