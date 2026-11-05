@@ -21,12 +21,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ignyx.app.ui.screens.ConfirmDialog
 import com.ignyx.app.ui.screens.FlashScreen
 import com.ignyx.app.ui.screens.HomeScreen
 import com.ignyx.app.ui.theme.IgnyxTheme
@@ -81,7 +84,15 @@ private fun App(vm: AppViewModel) {
         uri?.let(vm::addIso)
     }
 
-    BackHandler(enabled = state.screen == Screen.Flash) { vm.cancelFlash() }
+    BackHandler(enabled = state.screen == Screen.Flash) { vm.closeFlash() }
+
+    // Keep the screen awake while writing, so the phone does not sleep mid-way.
+    val view = LocalView.current
+    val writing = state.flash.running || state.copy != null
+    DisposableEffect(writing) {
+        view.keepScreenOn = writing
+        onDispose { view.keepScreenOn = false }
+    }
 
     AnimatedContent(
         targetState = state.screen,
@@ -94,11 +105,25 @@ private fun App(vm: AppViewModel) {
                 state = state,
                 onRefresh = vm::refresh,
                 onGrant = vm::requestPermission,
-                onAddIso = { pickIso.launch(arrayOf("application/octet-stream", "application/x-iso9660-image", "*/*")) },
-                onPrepare = vm::startPreviewFlash,
+                onAddIso = { pickIso.launch(arrayOf("*/*")) },
+                onPrepare = vm::askInstall,
+                onDelete = vm::askDelete,
                 onDismissMessage = vm::dismissMessage,
             )
-            Screen.Flash -> FlashScreen(state.flash, onBack = vm::cancelFlash)
+            Screen.Flash -> FlashScreen(state.flash, onBack = vm::closeFlash)
         }
+    }
+
+    state.confirm?.let { c ->
+        ConfirmDialog(
+            confirm = c,
+            onConfirm = {
+                when (c) {
+                    is Confirm.Install -> vm.confirmInstall()
+                    is Confirm.Delete -> vm.confirmDelete(c.fileName)
+                }
+            },
+            onDismiss = vm::dismissConfirm,
+        )
     }
 }

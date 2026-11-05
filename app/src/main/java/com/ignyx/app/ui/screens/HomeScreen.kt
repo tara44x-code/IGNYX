@@ -62,6 +62,7 @@ fun HomeScreen(
     onGrant: () -> Unit,
     onAddIso: () -> Unit,
     onPrepare: () -> Unit,
+    onDelete: (String) -> Unit,
     onDismissMessage: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(Neon.Night)) {
@@ -74,16 +75,22 @@ fun HomeScreen(
                     action = "بحث مرة ثانية", style = NeonStyle.Ghost, onAction = onRefresh,
                 )
                 is DriveState.NeedsPermission -> EmptyState(
-                    title = "لكيت ${d.productName}",
+                    title = "لكيت ${d.name}",
                     body = "اسمح لـ IGNYX يوصل للفلاشة حتى يكدر يقرأها ويجهّزها.",
                     action = "السماح بالوصول", style = NeonStyle.Cyan, onAction = onGrant,
                 )
-                is DriveState.Unsupported -> EmptyState(
-                    title = d.productName,
-                    body = d.reason,
+                is DriveState.NotPrepared -> EmptyState(
+                    title = "${d.name} · ${formatBytes(d.diskBytes)}",
+                    body = if (d.gpt) "الفلاشة مجهّزة بنظام GPT، وIGNYX يدعم MBR بس. التجهيز يمسح كل شي عليها ويخليها قابلة للإقلاع."
+                    else "الفلاشة بعدها مو مجهّزة للإقلاع. التجهيز يمسح كل شي عليها مرة وحدة، وبعدها تضيف الأنظمة براحتك.",
                     action = "تجهيز الفلاشة", style = NeonStyle.Magenta, onAction = onPrepare,
                 )
-                is DriveState.Ready -> ReadyContent(d.info, state.copy, onAddIso, onPrepare)
+                is DriveState.Failed -> EmptyState(
+                    title = "صار خطأ ويا ${d.name}",
+                    body = d.reason + "\nافصل الفلاشة ورجّع وصّلها، وجرّب مرة ثانية.",
+                    action = "إعادة المحاولة", style = NeonStyle.Ghost, onAction = onRefresh,
+                )
+                is DriveState.Ready -> ReadyContent(d.info, state.copy, onAddIso, onPrepare, onDelete)
             }
         }
         state.message?.let { MessageBar(it, onDismissMessage) }
@@ -127,7 +134,7 @@ private fun EmptyState(title: String, body: String, action: String, style: NeonS
 }
 
 @Composable
-private fun ReadyContent(info: DriveInfo, copy: CopyState?, onAddIso: () -> Unit, onPrepare: () -> Unit) {
+private fun ReadyContent(info: DriveInfo, copy: CopyState?, onAddIso: () -> Unit, onPrepare: () -> Unit, onDelete: (String) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)) {
             item { DriveCard(info) }
@@ -152,7 +159,7 @@ private fun ReadyContent(info: DriveInfo, copy: CopyState?, onAddIso: () -> Unit
                     )
                 }
             }
-            items(info.isos, key = { it.name }) { IsoRow(it) }
+            items(info.isos, key = { it.name }) { IsoRow(it, enabled = copy == null, onDelete = { onDelete(it.name) }) }
         }
         copy?.let { CopyCard(it) }
         NeonButton(
@@ -177,13 +184,13 @@ private fun DriveCard(info: DriveInfo) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(info.label, style = MaterialTheme.typography.titleMedium, color = Neon.Text)
+            Text(info.name, style = MaterialTheme.typography.titleMedium, color = Neon.Text, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
             Row(
                 Modifier.clip(RoundedCornerShape(50)).background(Neon.Cyan.copy(alpha = 0.1f)).padding(horizontal = 10.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Box(Modifier.size(8.dp).graphicsLayer { alpha = dot }.clip(CircleShape).background(Neon.Cyan))
-                Text("متصلة", color = Neon.Cyan, style = MaterialTheme.typography.labelMedium)
+                Text("جاهزة للإقلاع", color = Neon.Cyan, style = MaterialTheme.typography.labelMedium)
             }
         }
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -196,16 +203,19 @@ private fun DriveCard(info: DriveInfo) {
                     .neonGlow(Neon.Cyan, 5.dp, 0.3f).clip(RoundedCornerShape(50)).background(Neon.Cyan)
             )
         }
-        Text("${info.isos.size} أنظمة", color = Neon.Muted, style = MaterialTheme.typography.bodyMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("${info.isos.size} أنظمة", color = Neon.Muted, style = MaterialTheme.typography.bodyMedium)
+            Text("فارغ ${formatBytes(info.freeBytes)}", color = Neon.Muted, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 
 @Composable
-private fun IsoRow(iso: IsoEntry) {
+private fun IsoRow(iso: IsoEntry, enabled: Boolean, onDelete: () -> Unit) {
     val accent = if (iso.name.hashCode() % 2 == 0) Neon.Cyan else Neon.Magenta
     Row(
         Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(18.dp)).background(Neon.SurfaceLow)
-            .border(1.dp, Neon.Line, RoundedCornerShape(18.dp)).padding(14.dp),
+            .border(1.dp, Neon.Line, RoundedCornerShape(18.dp)).padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
@@ -215,6 +225,11 @@ private fun IsoRow(iso: IsoEntry) {
             Text(iso.name.substringBeforeLast('.'), color = Neon.Text, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
             Text(formatBytes(iso.sizeBytes), color = Neon.Muted, style = MaterialTheme.typography.bodyMedium)
         }
+        Box(
+            Modifier.size(44.dp).clip(RoundedCornerShape(12.dp))
+                .clickable(enabled = enabled, onClickLabel = "حذف ${iso.name}", onClick = onDelete),
+            contentAlignment = Alignment.Center,
+        ) { Icon24(IgnyxIcon.Trash, Neon.Muted, 20.dp, 2f) }
     }
 }
 

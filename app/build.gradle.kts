@@ -14,8 +14,8 @@ android {
         applicationId = "com.ignyx.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     buildTypes {
@@ -52,8 +52,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
 
-    // USB mass storage access over OTG, no root needed
-    implementation("me.jahnen.libaums:core:0.10.0")
+    // Boot layout, exFAT and the Ventoy installer (pure Kotlin, tested on the JVM)
+    implementation(project(":core"))
+    // Ventoy ships its images xz-compressed
+    implementation("org.tukaani:xz:1.10")
 
     testImplementation("junit:junit:4.13.2")
 }

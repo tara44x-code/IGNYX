@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "IGNYX"
-include(":app")
+include(":app", ":core")

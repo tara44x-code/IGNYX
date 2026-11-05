@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'feature/**' ]
   pull_request:
   workflow_dispatch:
 
@@ -19,13 +19,54 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
+      - name: Fetch official Ventoy boot images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: scripts/fetch-ventoy.sh
+
+      - name: Core tests (builds a real Ventoy disk image)
+        run: ./gradlew --no-daemon :core:test
+
+      - name: Install checking tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q exfatprogs qemu-system-x86 ovmf tesseract-ocr imagemagick
+
+      - name: Check the image with Linux tools
+        run: |
+          set -euxo pipefail
+          IMG=core/build/ventoy-test/disk.img
+          sudo sfdisk -l "$IMG"
+          LOOP=$(sudo losetup -Pf --show "$IMG")
+          sudo blkid "${LOOP}p1" "${LOOP}p2"
+          sudo fsck.exfat -n "${LOOP}p1"
+          sudo mkdir -p /mnt/ventoy
+          sudo mount -t exfat "${LOOP}p1" /mnt/ventoy
+          ls -la /mnt/ventoy
+          (cd /mnt/ventoy && sha256sum -c "$GITHUB_WORKSPACE/core/build/ventoy-test/expected.sha256")
+          # Write a file with Linux and make sure our image is still consistent afterwards
+          echo "hello from linux" | sudo tee /mnt/ventoy/linux-note.txt
+          sudo umount /mnt/ventoy
+          sudo fsck.exfat -n "${LOOP}p1"
+          sudo losetup -d "$LOOP"
+
+      - name: Boot test (BIOS)
+        run: python3 scripts/qemu-boot-check.py core/build/ventoy-test/disk.img bios ignyx-test boot-bios.png
+
+      - name: Boot test (UEFI)
+        run: python3 scripts/qemu-boot-check.py core/build/ventoy-test/disk.img uefi ignyx-test boot-uefi.png
 
       - name: Build debug APK
-        run: ./gradlew --no-daemon assembleDebug
+        run: ./gradlew --no-daemon :app:assembleDebug
 
       - uses: actions/upload-artifact@v4
         with:
           name: IGNYX-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: boot-screenshots
+          path: boot-*.png
+          if-no-files-found: ignore

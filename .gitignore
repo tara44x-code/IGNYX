@@ -9,3 +9,5 @@ captures/
 .cxx/
 # Fonts are downloaded at build time (see app/build.gradle.kts)
 app/src/main/res/font/*.ttf
+# Official Ventoy images are fetched by scripts/fetch-ventoy.sh
+app/src/main/assets/ventoy/

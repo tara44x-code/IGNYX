@@ -60,9 +60,9 @@ fun FlashScreen(flash: FlashState, onBack: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(
                 Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(Neon.Surface)
-                    .border(1.dp, Neon.LineStrong, RoundedCornerShape(14.dp)).clickable(onClick = onBack),
+                    .border(1.dp, Neon.LineStrong, RoundedCornerShape(14.dp)).clickable(enabled = !flash.running, onClick = onBack),
                 contentAlignment = Alignment.Center,
-            ) { Icon24(IgnyxIcon.Back, Neon.Text, 20.dp) }
+            ) { Icon24(IgnyxIcon.Back, if (flash.running) Neon.LineStrong else Neon.Text, 20.dp) }
             Text("تجهيز الفلاشة", style = MaterialTheme.typography.titleLarge, color = Neon.Text)
         }
 
@@ -70,25 +70,28 @@ fun FlashScreen(flash: FlashState, onBack: () -> Unit) {
             Box(Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 24.dp), contentAlignment = Alignment.Center) {
                 ProgressRing(flash.progress)
             }
-            flash.layoutSummary?.let {
-                Text(it, color = Neon.Muted, fontFamily = ChakraPetch, fontSize = 13.sp, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp))
-            }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 flash.steps.forEach { step -> StepRow(step.title, step.status) }
             }
         }
 
+        val note = when {
+            flash.error != null -> flash.error
+            flash.finished -> "الفلاشة صارت قابلة للإقلاع. ضيف ملفات ISO وشغّل الحاسبة منها."
+            else -> "لا تفصل الفلاشة ولا تطلع من التطبيق لحد ما يخلص."
+        }
         Text(
-            "نسخة معاينة: الخطوات تنعرض بس، وما ينكتب أي شي على الفلاشة لحد ما تكمل مرحلة الكتابة.",
-            color = Neon.Muted, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
+            note,
+            color = if (flash.error != null) Neon.Magenta else Neon.Muted,
+            style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
         )
         NeonButton(
-            text = if (flash.finished) "تمام" else "إلغاء",
+            text = when { flash.running -> "جاري التجهيز…"; flash.finished -> "تمام"; else -> "رجوع" },
             onClick = onBack,
             modifier = Modifier.fillMaxWidth(),
-            style = if (flash.finished) NeonStyle.Cyan else NeonStyle.GhostMagenta,
+            enabled = !flash.running,
+            style = if (flash.error != null) NeonStyle.GhostMagenta else NeonStyle.Cyan,
         )
     }
 }
@@ -155,10 +158,16 @@ private fun StepRow(title: String, status: StepStatus) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(Neon.Cyan))
             }
             StepStatus.Waiting -> Box(Modifier.size(28.dp).border(2.dp, Neon.LineStrong, CircleShape))
+            StepStatus.Failed -> Box(Modifier.size(28.dp).clip(CircleShape).background(Neon.Magenta), contentAlignment = Alignment.Center) {
+                Text("!", color = Neon.OnMagenta, fontWeight = FontWeight.Bold)
+            }
         }
         Text(
             title,
-            color = when (status) { StepStatus.Waiting -> Neon.Muted; StepStatus.Running -> Neon.Cyan; StepStatus.Done -> Neon.Text },
+            color = when (status) {
+                StepStatus.Waiting -> Neon.Muted; StepStatus.Running -> Neon.Cyan
+                StepStatus.Done -> Neon.Text; StepStatus.Failed -> Neon.Magenta
+            },
             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (active) FontWeight.ExtraBold else FontWeight.SemiBold),
         )
     }

@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /** Tiny stroke icons drawn on a 24-unit grid, so the app needs no icon library. */
-enum class IgnyxIcon { Plus, Back, Check, Usb, Refresh }
+enum class IgnyxIcon { Plus, Back, Check, Usb, Refresh, Trash, Warning }
 
 @Composable
 fun Icon24(icon: IgnyxIcon, color: Color, size: Dp = 22.dp, strokeWidth: Float = 2.4f) {
@@ -37,6 +37,16 @@ fun Icon24(icon: IgnyxIcon, color: Color, size: Dp = 22.dp, strokeWidth: Float =
             IgnyxIcon.Usb -> {
                 drawPath(p(9f, 3f, 15f, 3f, 15f, 9f, 9f, 9f, 9f, 3f), color, style = stroke)
                 drawPath(p(7f, 9f, 17f, 9f, 17f, 20f, 7f, 20f, 7f, 9f), color, style = stroke)
+            }
+            IgnyxIcon.Trash -> {
+                drawPath(p(4f, 7f, 20f, 7f), color, style = stroke)
+                drawPath(p(9f, 7f, 9f, 4f, 15f, 4f, 15f, 7f), color, style = stroke)
+                drawPath(p(6f, 7f, 7f, 20f, 17f, 20f, 18f, 7f), color, style = stroke)
+            }
+            IgnyxIcon.Warning -> {
+                drawPath(p(12f, 3f, 22f, 20f, 2f, 20f, 12f, 3f), color, style = stroke)
+                drawLine(color, Offset(12 * u, 9 * u), Offset(12 * u, 14 * u), stroke.width, StrokeCap.Round)
+                drawLine(color, Offset(12 * u, 17 * u), Offset(12 * u, 17.2f * u), stroke.width, StrokeCap.Round)
             }
             IgnyxIcon.Refresh -> {
                 drawArc(color, 40f, 290f, false, Offset(5 * u, 5 * u), androidx.compose.ui.geometry.Size(14 * u, 14 * u), style = stroke)
