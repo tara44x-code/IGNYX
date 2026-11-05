@@ -88,8 +88,9 @@ class ExFatVolume private constructor(
         return (0 until n).map { first + it }
     }
 
-    private fun readClusters(clusters: List<Long>, limit: Long = Long.MAX_VALUE): ByteArray {
-        val size = minOf(clusters.size.toLong() * clusterBytes, Bytes.ceilDiv(limit, 512) * 512).toInt()
+    private fun readClusters(clusters: List<Long>, limit: Long = -1): ByteArray {
+        val all = clusters.size.toLong() * clusterBytes
+        val size = (if (limit < 0) all else minOf(all, Bytes.ceilDiv(limit, 512) * 512)).toInt()
         val out = ByteArray(size)
         var off = 0
         for (c in clusters) {

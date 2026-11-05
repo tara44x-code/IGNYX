@@ -21,5 +21,9 @@ dependencies {
 tasks.test {
     // The install test writes a 600 MB sparse disk image for the CI checks.
     maxHeapSize = "1g"
-    testLogging { events("passed", "failed", "skipped"); showStandardStreams = true }
+    testLogging {
+        events("passed", "failed", "skipped")
+        showStandardStreams = true
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
 }
