@@ -37,9 +37,9 @@ jobs:
       - name: Install checking tools
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q exfatprogs qemu-system-x86 ovmf tesseract-ocr imagemagick
+          sudo apt-get install -y -q exfatprogs dosfstools qemu-system-x86 ovmf tesseract-ocr imagemagick
 
-      - name: Check the image with Linux tools
+      - name: Check the Ventoy image with Linux tools
         run: |
           set -euxo pipefail
           IMG=core/build/ventoy-test/disk.img
@@ -49,19 +49,61 @@ jobs:
           sudo fsck.exfat -n "${LOOP}p1"
           sudo mkdir -p /mnt/ventoy
           sudo mount -t exfat "${LOOP}p1" /mnt/ventoy
-          ls -la /mnt/ventoy
+          ls -laR /mnt/ventoy
+          cat /mnt/ventoy/ventoy/theme/ignyx/theme.txt
           (cd /mnt/ventoy && sha256sum -c "$GITHUB_WORKSPACE/core/build/ventoy-test/expected.sha256")
-          # Write a file with Linux and make sure our image is still consistent afterwards
           echo "hello from linux" | sudo tee /mnt/ventoy/linux-note.txt
           sudo umount /mnt/ventoy
           sudo fsck.exfat -n "${LOOP}p1"
           sudo losetup -d "$LOOP"
 
-      - name: Boot test (BIOS)
-        run: python3 scripts/qemu-boot-check.py core/build/ventoy-test/disk.img bios ignyx-test boot-bios.png
+      - name: Check restored plain drives (FAT32 and exFAT)
+        run: |
+          set -euxo pipefail
+          for fs in fat32 exfat; do
+            IMG=core/build/ventoy-test/plain-$fs.img
+            sudo sfdisk -l "$IMG"
+            LOOP=$(sudo losetup -Pf --show "$IMG")
+            sudo blkid "${LOOP}p1"
+            if [ $fs = fat32 ]; then sudo fsck.vfat -n "${LOOP}p1"; else sudo fsck.exfat -n "${LOOP}p1"; fi
+            sudo mkdir -p /mnt/plain && sudo mount "${LOOP}p1" /mnt/plain
+            ls -la /mnt/plain
+            echo test | sudo tee /mnt/plain/written-by-linux.txt
+            sudo umount /mnt/plain
+            sudo losetup -d "$LOOP"
+          done
 
-      - name: Boot test (UEFI)
-        run: python3 scripts/qemu-boot-check.py core/build/ventoy-test/disk.img uefi ignyx-test boot-uefi.png
+      - name: Compatibility with volumes made by mkfs.exfat
+        run: |
+          set -euxo pipefail
+          IMG=$PWD/core/build/ventoy-test/external.img
+          truncate -s 300M "$IMG"
+          echo 'start=2048, type=7' | sfdisk "$IMG"
+          LOOP=$(sudo losetup -Pf --show "$IMG")
+          sudo mkfs.exfat -L LINUX "${LOOP}p1"
+          sudo mkdir -p /mnt/ext && sudo mount "${LOOP}p1" /mnt/ext
+          sudo dd if=/dev/urandom of=/mnt/ext/from-linux.bin bs=1M count=5 status=none
+          sudo dd if=/dev/urandom of=/mnt/ext/delete-me.bin bs=1M count=3 status=none
+          sudo mkdir /mnt/ext/linux-folder
+          (cd /mnt/ext && sha256sum from-linux.bin) > core/build/ventoy-test/linux.sha256
+          sudo umount /mnt/ext && sudo losetup -d "$LOOP"
+          EXTERNAL_EXFAT_IMAGE="$IMG" ./gradlew --no-daemon :core:test --rerun --tests '*worksOnVolumesMadeByOtherTools*'
+          LOOP=$(sudo losetup -Pf --show "$IMG")
+          sudo fsck.exfat -n "${LOOP}p1"
+          sudo mount "${LOOP}p1" /mnt/ext
+          ls -laR /mnt/ext
+          test ! -e /mnt/ext/delete-me.bin
+          test "$(cat /mnt/ext/linux-folder/nested-from-ignyx.txt)" = abc
+          (cd /mnt/ext && sha256sum -c "$GITHUB_WORKSPACE/core/build/ventoy-test/linux.sha256" && sha256sum -c "$GITHUB_WORKSPACE/core/build/ventoy-test/external.sha256")
+          sudo umount /mnt/ext && sudo losetup -d "$LOOP"
+
+      - name: Boot test with IGNYX theme (BIOS)
+        env: { DUMP_SCREEN: "1" }
+        run: python3 scripts/qemu-boot-check.py core/build/ventoy-test/disk.img bios small boot-bios.png
+
+      - name: Boot test with IGNYX theme (UEFI)
+        env: { DUMP_SCREEN: "1" }
+        run: python3 scripts/qemu-boot-check.py core/build/ventoy-test/disk.img uefi small boot-uefi.png
 
       - name: Build debug APK
         run: ./gradlew --no-daemon :app:assembleDebug

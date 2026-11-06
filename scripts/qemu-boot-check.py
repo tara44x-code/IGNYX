@@ -66,4 +66,11 @@ finally:
     qemu.kill()
 
 print(("FOUND" if found else "NOT FOUND") + f": '{expected}' in {mode} boot", flush=True)
+if os.environ.get("DUMP_SCREEN") and os.path.exists(os.path.join(tmp, "screen.ppm")):
+    import base64
+    small = os.path.join(tmp, "small.png")
+    subprocess.run(["convert", os.path.join(tmp, "screen.ppm"), "-resize", "800x", small], check=True)
+    print("SCREEN-BASE64-BEGIN " + mode)
+    print(base64.b64encode(open(small, "rb").read()).decode())
+    print("SCREEN-BASE64-END " + mode, flush=True)
 sys.exit(0 if found else 1)

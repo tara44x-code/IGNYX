@@ -8,9 +8,10 @@ data class ExFatEntry(val name: String, val sizeBytes: Long, val isDirectory: Bo
 class ExFatException(message: String) : IOException(message)
 
 /**
- * A small exFAT driver: enough to list, add and delete files in the root folder of a
- * Ventoy data partition. New files are written as one contiguous run of clusters
- * (the "NoFatChain" form), which is also the fastest layout for booting ISO files.
+ * A small exFAT driver for the Ventoy data partition: list, add and delete files,
+ * and create folders. New files and folders are written as one contiguous run of
+ * clusters (the "NoFatChain" form), which is also the fastest layout for booting ISOs.
+ * Paths use "/" and are relative to the root, e.g. "ventoy/theme/ignyx/theme.txt".
  */
 class ExFatVolume private constructor(
     private val dev: BlockDevice,
@@ -24,8 +25,6 @@ class ExFatVolume private constructor(
     private val spc = 1 shl spcShift
     val clusterBytes: Int = spc * BlockDevice.SECTOR
 
-    private lateinit var rootClusters: List<Long>
-    private lateinit var root: ByteArray
     private lateinit var bitmapClusters: List<Long>
     private lateinit var bitmap: ByteArray
     private lateinit var upcase: CharArray
@@ -34,6 +33,7 @@ class ExFatVolume private constructor(
 
     val capacityBytes: Long get() = clusterCount * clusterBytes
     val freeBytes: Long get() = freeClusters() * clusterBytes
+    val usedBytes: Long get() = capacityBytes - freeBytes
 
     companion object {
         fun open(dev: BlockDevice, partStart: Long): ExFatVolume {
@@ -55,7 +55,7 @@ class ExFatVolume private constructor(
         }
     }
 
-    // ---------------------------------------------------------------- reading
+    // ---------------------------------------------------------------- low level
 
     private fun clusterLba(c: Long) = partStart + heapOffset + (c - 2) * spc
 
@@ -88,6 +88,9 @@ class ExFatVolume private constructor(
         return (0 until n).map { first + it }
     }
 
+    private fun chainOf(first: Long, noFatChain: Boolean, length: Long): List<Long> =
+        if (first < 2) emptyList() else if (noFatChain) contiguous(first, length) else fatChain(first)
+
     private fun readClusters(clusters: List<Long>, limit: Long = -1): ByteArray {
         val all = clusters.size.toLong() * clusterBytes
         val size = (if (limit < 0) all else minOf(all, Bytes.ceilDiv(limit, 512) * 512)).toInt()
@@ -103,23 +106,23 @@ class ExFatVolume private constructor(
     }
 
     private fun load() {
-        rootClusters = fatChain(rootCluster)
-        root = readClusters(rootClusters)
+        val root = loadRoot()
         var bitmapFirst = 0L
         var bitmapLen = 0L
         var upFirst = 0L
         var upLen = 0L
         var i = 0
-        while (i < root.size) {
-            when (root[i].toInt() and 0xFF) {
+        val b = root.buf
+        while (i < b.size) {
+            when (b[i].toInt() and 0xFF) {
                 ExFat.TYPE_END -> break
-                ExFat.TYPE_BITMAP -> if ((root[i + 1].toInt() and 1) == 0) {
-                    bitmapFirst = Bytes.le32(root, i + 20); bitmapLen = Bytes.le64(root, i + 24)
+                ExFat.TYPE_BITMAP -> if ((b[i + 1].toInt() and 1) == 0) {
+                    bitmapFirst = Bytes.le32(b, i + 20); bitmapLen = Bytes.le64(b, i + 24)
                 }
-                ExFat.TYPE_UPCASE -> { upFirst = Bytes.le32(root, i + 20); upLen = Bytes.le64(root, i + 24) }
+                ExFat.TYPE_UPCASE -> { upFirst = Bytes.le32(b, i + 20); upLen = Bytes.le64(b, i + 24) }
                 ExFat.TYPE_LABEL -> {
-                    val n = (root[i + 1].toInt() and 0xFF).coerceAtMost(11)
-                    label = String(CharArray(n) { k -> Bytes.le16(root, i + 2 + k * 2).toChar() })
+                    val n = (b[i + 1].toInt() and 0xFF).coerceAtMost(11)
+                    label = String(CharArray(n) { k -> Bytes.le16(b, i + 2 + k * 2).toChar() })
                 }
             }
             i += ExFat.ENTRY_SIZE
@@ -133,67 +136,157 @@ class ExFatVolume private constructor(
 
     private fun upper(s: String) = String(CharArray(s.length) { upcase[s[it].code] })
 
-    // ---------------------------------------------------------------- directory
+    // ---------------------------------------------------------------- directories
+
+    /** A directory's contents, read into memory, plus where each part lives on disk. */
+    private inner class Dir(val clusters: List<Long>) {
+        val buf: ByteArray = readClusters(clusters)
+
+        fun writeRange(from: Int, to: Int) {
+            val first = from / BlockDevice.SECTOR
+            val last = (to - 1) / BlockDevice.SECTOR
+            for (s in first..last) {
+                val byteOff = s * BlockDevice.SECTOR
+                val cluster = clusters[byteOff / clusterBytes]
+                val inCluster = (byteOff % clusterBytes) / BlockDevice.SECTOR
+                dev.write(clusterLba(cluster) + inCluster, buf, byteOff, 1)
+            }
+        }
+
+        fun sets(): List<EntrySet> {
+            val out = ArrayList<EntrySet>()
+            var i = 0
+            while (i < buf.size) {
+                val type = buf[i].toInt() and 0xFF
+                if (type == ExFat.TYPE_END) break
+                if (type == ExFat.TYPE_FILE) {
+                    val secondary = buf[i + 1].toInt() and 0xFF
+                    val attrs = Bytes.le16(buf, i + 4)
+                    val s = i + ExFat.ENTRY_SIZE
+                    if (secondary >= 2 && s + secondary * ExFat.ENTRY_SIZE <= buf.size &&
+                        (buf[s].toInt() and 0xFF) == ExFat.TYPE_STREAM
+                    ) {
+                        val flags = buf[s + 1].toInt() and 0xFF
+                        val nameLen = buf[s + 3].toInt() and 0xFF
+                        val first = Bytes.le32(buf, s + 20)
+                        val length = Bytes.le64(buf, s + 24)
+                        val sb = StringBuilder()
+                        for (k in 1 until secondary) {
+                            val e = s + k * ExFat.ENTRY_SIZE
+                            if ((buf[e].toInt() and 0xFF) != ExFat.TYPE_NAME) continue
+                            for (ch in 0 until ExFat.NAME_CHARS_PER_ENTRY) {
+                                if (sb.length >= nameLen) break
+                                sb.append(Bytes.le16(buf, e + 2 + ch * 2).toChar())
+                            }
+                        }
+                        out += EntrySet(i, secondary + 1, sb.toString(), attrs, flags, first, length)
+                    }
+                    i += (secondary + 1) * ExFat.ENTRY_SIZE
+                    continue
+                }
+                i += ExFat.ENTRY_SIZE
+            }
+            return out
+        }
+
+        fun find(name: String): EntrySet? {
+            val key = upper(name)
+            return sets().firstOrNull { upper(it.name) == key }
+        }
+
+        fun freeSlots(count: Int): Int? {
+            var run = 0
+            var start = 0
+            var i = 0
+            while (i < buf.size) {
+                if ((buf[i].toInt() and ExFat.IN_USE) == 0) {
+                    if (run == 0) start = i
+                    run++
+                    if (run == count) return start
+                } else run = 0
+                i += ExFat.ENTRY_SIZE
+            }
+            return null
+        }
+    }
 
     private class EntrySet(
         val index: Int, val count: Int, val name: String, val attrs: Int,
         val flags: Int, val firstCluster: Long, val length: Long,
-    )
+    ) {
+        val isDirectory get() = (attrs and ExFat.ATTR_DIRECTORY) != 0
+        val noFatChain get() = (flags and ExFat.FLAG_NO_FAT_CHAIN) != 0
+    }
 
-    private fun entrySets(): List<EntrySet> {
-        val out = ArrayList<EntrySet>()
-        var i = 0
-        while (i < root.size) {
-            val type = root[i].toInt() and 0xFF
-            if (type == ExFat.TYPE_END) break
-            if (type == ExFat.TYPE_FILE) {
-                val secondary = root[i + 1].toInt() and 0xFF
-                val attrs = Bytes.le16(root, i + 4)
-                val s = i + ExFat.ENTRY_SIZE
-                if (secondary >= 2 && s + secondary * ExFat.ENTRY_SIZE <= root.size &&
-                    (root[s].toInt() and 0xFF) == ExFat.TYPE_STREAM
-                ) {
-                    val flags = root[s + 1].toInt() and 0xFF
-                    val nameLen = root[s + 3].toInt() and 0xFF
-                    val first = Bytes.le32(root, s + 20)
-                    val length = Bytes.le64(root, s + 24)
-                    val sb = StringBuilder()
-                    for (k in 1 until secondary) {
-                        val e = s + k * ExFat.ENTRY_SIZE
-                        if ((root[e].toInt() and 0xFF) != ExFat.TYPE_NAME) continue
-                        for (ch in 0 until ExFat.NAME_CHARS_PER_ENTRY) {
-                            if (sb.length >= nameLen) break
-                            sb.append(Bytes.le16(root, e + 2 + ch * 2).toChar())
-                        }
-                    }
-                    out += EntrySet(i, secondary + 1, sb.toString(), attrs, flags, first, length)
-                }
-                i += (secondary + 1) * ExFat.ENTRY_SIZE
-                continue
+    private fun loadRoot() = Dir(fatChain(rootCluster))
+
+    private fun parts(path: String): List<String> = path.split('/').filter { it.isNotEmpty() && it != "." }
+
+    /** Opens the folder at [path], or returns null if any part is missing. */
+    private fun openDir(path: String): Dir? {
+        var dir = loadRoot()
+        for (p in parts(path)) {
+            val set = dir.find(p) ?: return null
+            if (!set.isDirectory) return null
+            dir = Dir(chainOf(set.firstCluster, set.noFatChain, set.length))
+        }
+        return dir
+    }
+
+    private fun splitParent(path: String): Pair<String, String> {
+        val p = parts(path)
+        if (p.isEmpty()) throw ExFatException("المسار فارغ")
+        return p.dropLast(1).joinToString("/") to p.last()
+    }
+
+    fun list(path: String = ""): List<ExFatEntry> {
+        val dir = openDir(path) ?: throw ExFatException("المجلد غير موجود: $path")
+        return dir.sets().map { ExFatEntry(it.name, it.length, it.isDirectory) }
+    }
+
+    fun exists(path: String): Boolean {
+        if (parts(path).isEmpty()) return true
+        val (parent, name) = splitParent(path)
+        return openDir(parent)?.find(name) != null
+    }
+
+    fun isDirectory(path: String): Boolean {
+        if (parts(path).isEmpty()) return true
+        val (parent, name) = splitParent(path)
+        return openDir(parent)?.find(name)?.isDirectory == true
+    }
+
+    /** Total size of all files under [path], recursively. */
+    fun sizeOf(path: String): Long {
+        if (!isDirectory(path)) {
+            val (parent, name) = splitParent(path)
+            return openDir(parent)?.find(name)?.length ?: 0
+        }
+        return list(path).sumOf { if (it.isDirectory) sizeOf(join(path, it.name)) else it.sizeBytes }
+    }
+
+    private fun join(a: String, b: String) = if (a.isEmpty()) b else "$a/$b"
+
+    /** Creates the folder at [path] and any missing parents. */
+    fun mkdirs(path: String) {
+        var cur = ""
+        for (p in parts(path)) {
+            val dir = openDir(cur) ?: throw ExFatException("المجلد غير موجود: $cur")
+            val existing = dir.find(p)
+            if (existing == null) {
+                checkName(p)
+                val first = findRun(1)
+                if (first < 0) throw ExFatException("ماكو مساحة كافية على الفلاشة")
+                dev.write(clusterLba(first), ByteArray(clusterBytes), 0, spc)
+                setUsed(first, 1, true)
+                writeBitmapBits(first, 1)
+                writeEntrySet(dir, p, ExFat.ATTR_DIRECTORY, first, clusterBytes.toLong())
+            } else if (!existing.isDirectory) {
+                throw ExFatException("يوجد ملف بنفس اسم المجلد: $p")
             }
-            i += ExFat.ENTRY_SIZE
+            cur = join(cur, p)
         }
-        return out
-    }
-
-    fun list(): List<ExFatEntry> = entrySets().map {
-        ExFatEntry(it.name, it.length, (it.attrs and ExFat.ATTR_DIRECTORY) != 0)
-    }
-
-    private fun find(name: String): EntrySet? {
-        val key = upper(name)
-        return entrySets().firstOrNull { upper(it.name) == key }
-    }
-
-    private fun writeRootRange(from: Int, to: Int) {
-        val first = from / BlockDevice.SECTOR
-        val last = (to - 1) / BlockDevice.SECTOR
-        for (s in first..last) {
-            val byteOff = s * BlockDevice.SECTOR
-            val cluster = rootClusters[byteOff / clusterBytes]
-            val inCluster = (byteOff % clusterBytes) / BlockDevice.SECTOR
-            dev.write(clusterLba(cluster) + inCluster, root, byteOff, 1)
-        }
+        dev.flush()
     }
 
     // ---------------------------------------------------------------- bitmap
@@ -242,7 +335,6 @@ class ExFatVolume private constructor(
         val end = clusterCount + 2
         while (c < end) {
             val bit = c - 2
-            // Skip whole used bytes quickly.
             if (bit % 8 == 0L && bit + 8 <= clusterCount && (bitmap[(bit / 8).toInt()].toInt() and 0xFF) == 0xFF) {
                 runLen = 0; runStart = -1; c += 8; continue
             }
@@ -256,30 +348,79 @@ class ExFatVolume private constructor(
         return -1
     }
 
+    /** The largest file that fits in one contiguous free run. */
+    fun largestFreeRunBytes(): Long {
+        var best = 0L
+        var run = 0L
+        for (c in 2L until clusterCount + 2) {
+            if (isUsed(c)) run = 0 else { run++; if (run > best) best = run }
+        }
+        return best * clusterBytes
+    }
+
     // ---------------------------------------------------------------- writing
 
     private fun checkName(name: String) {
-        if (name.isEmpty() || name.length > ExFat.MAX_NAME) throw ExFatException("اسم الملف غير صالح")
+        if (name.isEmpty() || name.length > ExFat.MAX_NAME || name == "." || name == "..") {
+            throw ExFatException("اسم الملف غير صالح")
+        }
         if (name.any { it.code < 0x20 || it in "\"*/:<>?\\|" }) throw ExFatException("اسم الملف بيه رموز غير مسموحة")
     }
 
+    private fun writeEntrySet(dir: Dir, name: String, attrs: Int, first: Long, size: Long) {
+        val nameEntries = Bytes.ceilDiv(name.length.toLong(), ExFat.NAME_CHARS_PER_ENTRY.toLong()).toInt()
+        val total = 2 + nameEntries
+        val slot = dir.freeSlots(total) ?: throw ExFatException("المجلد ممتلئ")
+        val set = ByteArray(total * ExFat.ENTRY_SIZE)
+        val now = ExFat.timestampNow()
+        set[0] = ExFat.TYPE_FILE.toByte()
+        set[1] = (total - 1).toByte()
+        Bytes.putLe16(set, 4, attrs)
+        Bytes.putLe32(set, 8, now); Bytes.putLe32(set, 12, now); Bytes.putLe32(set, 16, now)
+        val s = ExFat.ENTRY_SIZE
+        set[s] = ExFat.TYPE_STREAM.toByte()
+        set[s + 1] = (ExFat.FLAG_ALLOCATION_POSSIBLE or (if (first >= 2) ExFat.FLAG_NO_FAT_CHAIN else 0)).toByte()
+        set[s + 3] = name.length.toByte()
+        Bytes.putLe16(set, s + 4, ExFat.nameHash(upper(name)))
+        Bytes.putLe64(set, s + 8, size)
+        Bytes.putLe32(set, s + 20, first)
+        Bytes.putLe64(set, s + 24, size)
+        for (k in 0 until nameEntries) {
+            val e = (2 + k) * ExFat.ENTRY_SIZE
+            set[e] = ExFat.TYPE_NAME.toByte()
+            for (ch in 0 until ExFat.NAME_CHARS_PER_ENTRY) {
+                val idx = k * ExFat.NAME_CHARS_PER_ENTRY + ch
+                if (idx < name.length) Bytes.putLe16(set, e + 2 + ch * 2, name[idx].code)
+            }
+        }
+        Bytes.putLe16(set, 2, ExFat.entrySetChecksum(set))
+        set.copyInto(dir.buf, slot)
+        dir.writeRange(slot, slot + set.size)
+    }
+
     /**
-     * Writes a new file into the root folder. Replaces any file with the same name.
+     * Writes a file. Missing parent folders are created; a file with the same name is replaced.
      * [input] must supply exactly [size] bytes.
      */
-    fun createFile(name: String, size: Long, input: InputStream, onProgress: (Float) -> Unit = {}) {
+    fun createFile(path: String, size: Long, input: InputStream, onProgress: (Float) -> Unit = {}) {
+        val (parentPath, name) = splitParent(path)
         checkName(name)
         if (size < 0) throw ExFatException("حجم الملف غير معروف")
-        find(name)?.let { delete(it.name) }
+        if (parentPath.isNotEmpty()) mkdirs(parentPath)
+        openDir(parentPath)!!.find(name)?.let {
+            if (it.isDirectory) throw ExFatException("يوجد مجلد بنفس الاسم: $name")
+            delete(path)
+        }
 
         val clusters = Bytes.ceilDiv(size, clusterBytes.toLong())
         if (clusters > freeClusters()) throw ExFatException("ماكو مساحة كافية على الفلاشة")
         val first = if (clusters == 0L) 0L else findRun(clusters)
         if (first < 0) throw ExFatException("المساحة الفارغة مقطّعة. احذف ملفات حتى تتوفر مساحة متصلة.")
 
+        // Check there is room in the folder before writing gigabytes of data.
+        val dir = openDir(parentPath)!!
         val nameEntries = Bytes.ceilDiv(name.length.toLong(), ExFat.NAME_CHARS_PER_ENTRY.toLong()).toInt()
-        val total = 2 + nameEntries
-        val slot = findFreeSlots(total) ?: throw ExFatException("المجلد الرئيسي ممتلئ")
+        if (dir.freeSlots(2 + nameEntries) == null) throw ExFatException("المجلد ممتلئ")
 
         // 1. Data.
         if (clusters > 0) {
@@ -303,90 +444,69 @@ class ExFatVolume private constructor(
             }
         }
 
-        // 2. Allocation bitmap.
+        // 2. Allocation bitmap, 3. directory entry set.
         setUsed(first, clusters, true)
         writeBitmapBits(first, clusters)
-
-        // 3. Directory entry set.
-        val set = ByteArray(total * ExFat.ENTRY_SIZE)
-        val now = ExFat.timestampNow()
-        set[0] = ExFat.TYPE_FILE.toByte()
-        set[1] = (total - 1).toByte()
-        Bytes.putLe16(set, 4, ExFat.ATTR_ARCHIVE)
-        Bytes.putLe32(set, 8, now); Bytes.putLe32(set, 12, now); Bytes.putLe32(set, 16, now)
-        val s = ExFat.ENTRY_SIZE
-        set[s] = ExFat.TYPE_STREAM.toByte()
-        set[s + 1] = (ExFat.FLAG_ALLOCATION_POSSIBLE or (if (clusters > 0) ExFat.FLAG_NO_FAT_CHAIN else 0)).toByte()
-        set[s + 3] = name.length.toByte()
-        Bytes.putLe16(set, s + 4, ExFat.nameHash(upper(name)))
-        Bytes.putLe64(set, s + 8, size)
-        Bytes.putLe32(set, s + 20, first)
-        Bytes.putLe64(set, s + 24, size)
-        for (k in 0 until nameEntries) {
-            val e = (2 + k) * ExFat.ENTRY_SIZE
-            set[e] = ExFat.TYPE_NAME.toByte()
-            for (ch in 0 until ExFat.NAME_CHARS_PER_ENTRY) {
-                val idx = k * ExFat.NAME_CHARS_PER_ENTRY + ch
-                if (idx < name.length) Bytes.putLe16(set, e + 2 + ch * 2, name[idx].code)
-            }
-        }
-        Bytes.putLe16(set, 2, ExFat.entrySetChecksum(set))
-        set.copyInto(root, slot)
-        writeRootRange(slot, slot + set.size)
+        writeEntrySet(dir, name, ExFat.ATTR_ARCHIVE, first, size)
         dev.flush()
         onProgress(1f)
     }
 
-    private fun findFreeSlots(count: Int): Int? {
-        var run = 0
-        var start = 0
-        var i = 0
-        while (i < root.size) {
-            val type = root[i].toInt() and 0xFF
-            if ((type and ExFat.IN_USE) == 0) {
-                if (run == 0) start = i
-                run++
-                if (run == count) return start
-            } else run = 0
-            i += ExFat.ENTRY_SIZE
+    /** Deletes a file, or a folder and everything in it. Returns false if not found. */
+    fun delete(path: String): Boolean {
+        val (parentPath, name) = splitParent(path)
+        val dir = openDir(parentPath) ?: return false
+        val set = dir.find(name) ?: return false
+        if (set.isDirectory) {
+            for (child in list(path)) delete(join(path, child.name))
         }
-        return null
-    }
-
-    /** Deletes a file from the root folder. Returns false if it was not found. */
-    fun delete(name: String): Boolean {
-        val set = find(name) ?: return false
-        if ((set.attrs and ExFat.ATTR_DIRECTORY) != 0) throw ExFatException("حذف المجلدات غير مدعوم")
-
-        // Free the clusters.
-        if (set.firstCluster >= 2 && set.length > 0) {
-            if ((set.flags and ExFat.FLAG_NO_FAT_CHAIN) != 0) {
-                val n = Bytes.ceilDiv(set.length, clusterBytes.toLong())
-                setUsed(set.firstCluster, n, false)
-                writeBitmapBits(set.firstCluster, n)
-            } else {
-                for (c in fatChain(set.firstCluster)) {
-                    setUsed(c, 1, false)
-                    writeBitmapBits(c, 1)
-                }
-            }
+        val clusters = chainOf(set.firstCluster, set.noFatChain, set.length)
+        if (set.noFatChain && clusters.isNotEmpty()) {
+            setUsed(clusters.first(), clusters.size.toLong(), false)
+            writeBitmapBits(clusters.first(), clusters.size.toLong())
+        } else {
+            for (c in clusters) { setUsed(c, 1, false); writeBitmapBits(c, 1) }
         }
-        // Mark the entries as unused.
-        for (k in 0 until set.count) {
-            val e = set.index + k * ExFat.ENTRY_SIZE
-            root[e] = (root[e].toInt() and ExFat.IN_USE.inv()).toByte()
+        // Re-read the parent: deleting children may not touch it, but be safe.
+        val fresh = openDir(parentPath)!!
+        val target = fresh.find(name)!!
+        for (k in 0 until target.count) {
+            val e = target.index + k * ExFat.ENTRY_SIZE
+            fresh.buf[e] = (fresh.buf[e].toInt() and ExFat.IN_USE.inv()).toByte()
         }
-        writeRootRange(set.index, set.index + set.count * ExFat.ENTRY_SIZE)
+        fresh.writeRange(target.index, target.index + target.count * ExFat.ENTRY_SIZE)
         dev.flush()
         return true
     }
 
-    /** Reads a whole small file (used by tests and verification). */
-    fun readFile(name: String): ByteArray {
-        val set = find(name) ?: throw ExFatException("الملف غير موجود: $name")
+    /** Reads a whole small file. */
+    fun readFile(path: String): ByteArray {
+        val (parentPath, name) = splitParent(path)
+        val set = openDir(parentPath)?.find(name) ?: throw ExFatException("الملف غير موجود: $path")
+        if (set.isDirectory) throw ExFatException("هذا مجلد: $path")
         if (set.length == 0L) return ByteArray(0)
-        val clusters = if ((set.flags and ExFat.FLAG_NO_FAT_CHAIN) != 0) contiguous(set.firstCluster, set.length)
-        else fatChain(set.firstCluster)
-        return readClusters(clusters, set.length).copyOf(set.length.toInt())
+        if (set.length > Int.MAX_VALUE) throw ExFatException("الملف كبير")
+        return readClusters(chainOf(set.firstCluster, set.noFatChain, set.length), set.length).copyOf(set.length.toInt())
+    }
+
+    /** Streams a file in chunks, e.g. to verify it after copying. */
+    fun readFileChunks(path: String, onChunk: (ByteArray, Int) -> Unit) {
+        val (parentPath, name) = splitParent(path)
+        val set = openDir(parentPath)?.find(name) ?: throw ExFatException("الملف غير موجود: $path")
+        val clusters = chainOf(set.firstCluster, set.noFatChain, set.length)
+        var left = set.length
+        val buf = ByteArray(1 shl 20)
+        var i = 0
+        while (left > 0 && i < clusters.size) {
+            // Group consecutive clusters into one read of up to 1 MiB.
+            val start = clusters[i]
+            var n = 1
+            while (i + n < clusters.size && clusters[i + n] == start + n && (n + 1) * clusterBytes <= buf.size) n++
+            val bytes = minOf(n.toLong() * clusterBytes, left).toInt()
+            dev.read(clusterLba(start), buf, 0, Bytes.ceilDiv(bytes.toLong(), 512).toInt())
+            onChunk(buf, bytes)
+            left -= bytes
+            i += n
+        }
     }
 }

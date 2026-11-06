@@ -21,6 +21,7 @@ dependencies {
 tasks.test {
     // The install test writes a 600 MB sparse disk image for the CI checks.
     maxHeapSize = "1g"
+    systemProperty("java.awt.headless", "true")
     testLogging {
         events("passed", "failed", "skipped")
         showStandardStreams = true

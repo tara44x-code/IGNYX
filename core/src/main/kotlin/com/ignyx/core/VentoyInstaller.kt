@@ -26,11 +26,12 @@ object VentoyInstaller {
         dev: BlockDevice,
         images: VentoyImages,
         label: String = "Ventoy",
+        reserveSectors: Long = 0,
         random: Random = Random.Default,
         onProgress: (Step, Float) -> Unit = { _, _ -> },
     ): VentoyLayout.DiskLayout {
         require(images.bootImg.size >= VentoyLayout.BOOT_CODE_SIZE) { "boot.img is too small" }
-        val layout = VentoyLayout.plan(dev.sectorCount)
+        val layout = VentoyLayout.plan(dev.sectorCount, reserveSectors)
 
         // Invalidate the old partition table first, so nobody mounts a half-written drive.
         onProgress(Step.Prepare, 0f)
