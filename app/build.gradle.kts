@@ -14,8 +14,8 @@ android {
         applicationId = "com.ignyx.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     buildTypes {
@@ -56,6 +56,7 @@ dependencies {
     implementation(project(":core"))
     // Ventoy ships its images xz-compressed
     implementation("org.tukaani:xz:1.10")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 
     testImplementation("junit:junit:4.13.2")
 }

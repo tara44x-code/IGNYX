@@ -99,11 +99,11 @@ jobs:
 
       - name: Boot test with IGNYX theme (BIOS)
         env: { DUMP_SCREEN: "1" }
-        run: python3 scripts/qemu-boot-check.py core/build/ventoy-test/disk.img bios small boot-bios.png
+        run: python3 scripts/qemu-boot-check.py core/build/ventoy-test/disk.img bios Mint boot-bios.png
 
       - name: Boot test with IGNYX theme (UEFI)
         env: { DUMP_SCREEN: "1" }
-        run: python3 scripts/qemu-boot-check.py core/build/ventoy-test/disk.img uefi small boot-uefi.png
+        run: python3 scripts/qemu-boot-check.py core/build/ventoy-test/disk.img uefi Mint boot-uefi.png
 
       - name: Build debug APK
         run: ./gradlew --no-daemon :app:assembleDebug
