@@ -59,6 +59,7 @@ class ThemeActions(
     val setDim: (Float) -> Unit,
     val setLogo: (Boolean) -> Unit,
     val setTitle: (String) -> Unit,
+    val setClean: (Boolean) -> Unit,
     val setAccent: (Int) -> Unit,
     val setResolution: (Int, Int) -> Unit,
     val apply: () -> Unit,
@@ -130,6 +131,13 @@ fun ThemeScreen(state: UiState, a: ThemeActions) {
             icon = IgnyxIcon.Usb, title = "الشعار يم النص",
             onClick = { a.setLogo(!o.showLogo) },
             trailing = { NeonSwitch(o.showLogo, a.setLogo) },
+        )
+
+        ActionRow(
+            icon = IgnyxIcon.Shield, title = "شاشة نظيفة",
+            subtitle = "يخفي سطر الإصدار الصغير من زاوية الشاشة",
+            onClick = { a.setClean(!o.cleanBoot) },
+            trailing = { NeonSwitch(o.cleanBoot, a.setClean) },
         )
 
         SectionTitle("لون النيون")

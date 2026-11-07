@@ -75,7 +75,7 @@ class InstallAndExFatTest {
             pieces["select_$s.png"] = solid(8, 8, Color(0x22, 0xF1, 0xFF))
             pieces["slider_$s.png"] = solid(4, 4, Color(0xFF, 0x3D, 0xCB))
         }
-        return BootTheme(w, h, png(bg), pieces, "#EEF1FF", "#04121A", "#8E97C2", hideVersion = true)
+        return BootTheme(w, h, png(bg), pieces, "#EEF1FF", "#04121A", "#8E97C2", versionColor = "#05060F", hideVersion = true)
     }
 
     // ------------------------------------------------------------------ tests

@@ -424,6 +424,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setDim(v: Float) = updateTheme { it.copy(dim = v) }
     fun setShowLogo(v: Boolean) = updateTheme { it.copy(showLogo = v) }
     fun setTitle(v: String) = updateTheme { it.copy(title = v.take(24)) }
+    fun setCleanBoot(v: Boolean) = updateTheme { it.copy(cleanBoot = v) }
     fun clearPhoto() = updateTheme { it.copy(photo = null) }
 
     fun pickPhoto(uri: Uri) {

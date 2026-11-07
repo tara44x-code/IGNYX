@@ -29,6 +29,8 @@ data class ThemeOptions(
     val showLogo: Boolean = true,
     /** Text shown at the top of the boot screen; empty shows nothing. */
     val title: String = "IGNYX",
+    /** Hide the boot loader's version line: it is pushed into the bottom corner and drawn in the background colour. */
+    val cleanBoot: Boolean = true,
 )
 
 /** Draws the boot menu background and frame pieces with Android graphics. */
@@ -54,6 +56,16 @@ object ThemeRenderer {
             c.drawColor(Color.argb((o.dim * 255).toInt().coerceIn(0, 255), 0, 0, 0))
         } else {
             drawNeonScene(c, w, h, o.accent)
+        }
+        if (o.cleanBoot) {
+            // A soft dark corner where the (night-coloured) version line ends up.
+            val corner = Paint().apply {
+                shader = RadialGradient(
+                    w.toFloat(), h.toFloat(), maxOf(w, h) * 0.22f,
+                    intArrayOf(NIGHT, NIGHT, Color.TRANSPARENT), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP,
+                )
+            }
+            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), corner)
         }
         if (o.showLogo || o.title.isNotBlank()) drawLogo(ctx, c, w, h, o.accent, o.showLogo, o.title.trim())
         return bmp
@@ -186,6 +198,8 @@ object ThemeRenderer {
         itemColor = "#EEF1FF",
         selectedItemColor = "#04121A",
         hintColor = "#8E97C2",
+        versionColor = if (o.cleanBoot) "#05060F" else "#3A4270",
+        hideVersion = o.cleanBoot,
     )
 
     private fun withAlpha(c: Int, a: Int) = (c and 0x00FFFFFF) or (a.coerceIn(0, 255) shl 24)

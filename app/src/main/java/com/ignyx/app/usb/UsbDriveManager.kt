@@ -179,14 +179,13 @@ class UsbDriveManager(private val context: Context) {
             }
             JSONObject()
         }
-        json.put(
-            "theme",
-            JSONObject()
-                .put("file", "/${BootTheme.FILE}")
-                .put("gfxmode", theme.gfxmode)
-                .put("display_mode", "GUI")
-                .put("ventoy_color", theme.versionColor),
-        )
+        val section = JSONObject()
+            .put("file", "/${BootTheme.FILE}")
+            .put("gfxmode", theme.gfxmode)
+            .put("display_mode", "GUI")
+            .put("ventoy_color", theme.versionColor)
+        if (theme.hideVersion) section.put("ventoy_left", ThemeWriter.HIDDEN_POS).put("ventoy_top", ThemeWriter.HIDDEN_POS)
+        json.put("theme", section)
         ThemeWriter.install(vol, theme, json.toString(2), onProgress)
     }
 

@@ -168,6 +168,7 @@ private fun App(vm: AppViewModel) {
                                 setDim = vm::setDim,
                                 setLogo = vm::setShowLogo,
                                 setTitle = vm::setTitle,
+                                setClean = vm::setCleanBoot,
                                 setAccent = vm::setAccent,
                                 setResolution = vm::setResolution,
                                 apply = vm::applyTheme,
