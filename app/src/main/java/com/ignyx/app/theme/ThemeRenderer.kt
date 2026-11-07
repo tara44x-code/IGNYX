@@ -27,6 +27,8 @@ data class ThemeOptions(
     /** 0..1, how much to darken the photo so the menu stays readable. */
     val dim: Float = 0.45f,
     val showLogo: Boolean = true,
+    /** Text shown at the top of the boot screen; empty shows nothing. */
+    val title: String = "IGNYX",
 )
 
 /** Draws the boot menu background and frame pieces with Android graphics. */
@@ -53,7 +55,7 @@ object ThemeRenderer {
         } else {
             drawNeonScene(c, w, h, o.accent)
         }
-        if (o.showLogo) drawLogo(ctx, c, w, h, o.accent)
+        if (o.showLogo || o.title.isNotBlank()) drawLogo(ctx, c, w, h, o.accent, o.showLogo, o.title.trim())
         return bmp
     }
 
@@ -89,23 +91,24 @@ object ThemeRenderer {
         }
     }
 
-    private fun drawLogo(ctx: Context, c: Canvas, w: Int, h: Int, accent: Int) {
-        val size = h * 0.11f
-        val text = "IGNYX"
+    private fun drawLogo(ctx: Context, c: Canvas, w: Int, h: Int, accent: Int, showMark: Boolean, text: String) {
+        val size = if (showMark) h * 0.11f else 0f
         val typeface = runCatching { ResourcesCompat.getFont(ctx, R.font.chakra_petch_bold) }.getOrNull() ?: Typeface.DEFAULT_BOLD
         val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface
             textSize = h * 0.075f
-            letterSpacing = 0.18f
+            // Spacing letters apart breaks the joins of Arabic script, so only space out Latin text.
+            letterSpacing = if (text.all { it.code < 0x0590 }) 0.18f else 0f
             color = 0xFFEEF1FF.toInt()
         }
-        val textW = tp.measureText(text)
-        val gap = size * 0.25f
+        val textW = if (text.isEmpty()) 0f else tp.measureText(text)
+        val gap = if (showMark && text.isNotEmpty()) h * 0.11f * 0.25f else 0f
         val total = size + gap + textW
         val left = (w - total) / 2f
         val top = h * 0.08f
-        drawMark(c, left, top, size, accent)
-        val baseline = top + size / 2f - (tp.ascent() + tp.descent()) / 2f
+        if (showMark) drawMark(c, left, top, size, accent)
+        if (text.isEmpty()) return
+        val baseline = top + h * 0.11f / 2f - (tp.ascent() + tp.descent()) / 2f
         val glow = Paint(tp).apply { color = accent; maskFilter = BlurMaskFilter(h / 70f, BlurMaskFilter.Blur.NORMAL) }
         c.drawText(text, left + size + gap, baseline, glow)
         c.drawText(text, left + size + gap, baseline, tp)

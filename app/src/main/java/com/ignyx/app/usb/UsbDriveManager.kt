@@ -184,7 +184,8 @@ class UsbDriveManager(private val context: Context) {
             JSONObject()
                 .put("file", "/${BootTheme.FILE}")
                 .put("gfxmode", theme.gfxmode)
-                .put("display_mode", "GUI"),
+                .put("display_mode", "GUI")
+                .put("ventoy_color", theme.versionColor),
         )
         ThemeWriter.install(vol, theme, json.toString(2), onProgress)
     }
@@ -209,7 +210,7 @@ class UsbDriveManager(private val context: Context) {
         val assets = context.assets
         val files = assets.list("ventoy")?.toSet().orEmpty()
         val needed = listOf("boot.img", "core.img.xz", "ventoy.disk.img.xz")
-        if (!files.containsAll(needed)) error("ملفات Ventoy مو موجودة بهاي النسخة من التطبيق")
+        if (!files.containsAll(needed)) error("ملفات الإقلاع مو موجودة بهاي النسخة من التطبيق")
         return VentoyImages(
             bootImg = assets.open("ventoy/boot.img").use { it.readBytes() },
             coreImg = { XZInputStream(assets.open("ventoy/core.img.xz")) },

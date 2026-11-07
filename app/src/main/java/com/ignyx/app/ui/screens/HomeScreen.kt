@@ -192,7 +192,7 @@ private fun DriveCard(info: DriveInfo, appVersion: String, onUpdate: () -> Unit)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Tag(info.report.partitionStyle)
             Tag(info.report.fileSystem ?: "—")
-            Tag("Ventoy ${ltr(driveVersion ?: "؟")}")
+            if (driveVersion != null) Tag(ltr("v$driveVersion"))
             if (updateAvailable) {
                 Text(
                     "تحديث ${ltr(appVersion)}", color = Neon.OnMagenta, style = MaterialTheme.typography.labelMedium,

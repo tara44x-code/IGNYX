@@ -69,7 +69,7 @@ object VentoyInstaller {
         val back = dev.readSectors(0, 1)
         check(back.contentEquals(mbr)) { "التحقق فشل: جدول الأقسام ما انكتب صح" }
         val detected = VentoyLayout.detect(back, dev.sectorCount)
-        check(detected is VentoyLayout.Detection.Ventoy) { "التحقق فشل: الفلاشة ما تبين كـ Ventoy" }
+        check(detected is VentoyLayout.Detection.Ventoy) { "التحقق فشل: الفلاشة ما تبين مجهّزة للإقلاع" }
         ExFatVolume.open(dev, layout.data.startSector)
         onProgress(Step.Verify, 1f)
         return layout

@@ -18,6 +18,8 @@ class BootTheme(
     val selectedItemColor: String,
     val hintColor: String,
     val nightColor: String = "#05060F",
+    /** Colour of the small version line the boot loader prints in a corner. */
+    val versionColor: String = "#3A4270",
     val menuLeftPct: Int = 18,
     val menuTopPct: Int = 30,
     val menuWidthPct: Int = 64,
@@ -79,13 +81,20 @@ object ThemeWriter {
      * Writes the theme files and [ventoyJson] (which must already contain the theme section,
      * merged with any settings the user had) to the Ventoy data partition.
      */
+    /**
+     * The boot loader's JSON reader does not understand escaped slashes ("\/"), which
+     * Android's org.json writes by default. Without this the theme path is not found
+     * and the default menu appears instead.
+     */
+    fun sanitize(json: String): String = json.replace("\\/", "/")
+
     fun install(vol: ExFatVolume, theme: BootTheme, ventoyJson: String, onProgress: (Float) -> Unit = {}) {
         vol.mkdirs(BootTheme.DIR)
         val files = LinkedHashMap<String, ByteArray>()
         files["${BootTheme.DIR}/background.png"] = theme.background
         theme.pieces.forEach { (name, data) -> files["${BootTheme.DIR}/$name"] = data }
         files[BootTheme.FILE] = theme.themeTxt().toByteArray()
-        files[BootTheme.CONFIG] = ventoyJson.toByteArray()
+        files[BootTheme.CONFIG] = sanitize(ventoyJson).toByteArray()
         var i = 0
         for ((path, data) in files) {
             vol.createFile(path, data.size.toLong(), ByteArrayInputStream(data))
@@ -98,7 +107,7 @@ object ThemeWriter {
     fun remove(vol: ExFatVolume, ventoyJson: String?) {
         vol.delete(BootTheme.DIR)
         if (ventoyJson == null) vol.delete(BootTheme.CONFIG)
-        else vol.createFile(BootTheme.CONFIG, ventoyJson.toByteArray().size.toLong(), ByteArrayInputStream(ventoyJson.toByteArray()))
+        else sanitize(ventoyJson).toByteArray().let { vol.createFile(BootTheme.CONFIG, it.size.toLong(), ByteArrayInputStream(it)) }
     }
 
     /** A ventoy.json holding only the IGNYX theme. */
@@ -107,7 +116,8 @@ object ThemeWriter {
         |  "theme": {
         |    "file": "/${BootTheme.FILE}",
         |    "gfxmode": "${theme.gfxmode}",
-        |    "display_mode": "GUI"
+        |    "display_mode": "GUI",
+        |    "ventoy_color": "${theme.versionColor}"
         |  }
         |}
         |""".trimMargin()

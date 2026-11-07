@@ -46,7 +46,7 @@ class DialogActions(
 fun AppDialog(dialog: Dialog, a: DialogActions) {
     when (dialog) {
         is Dialog.Install -> {
-            var label by remember { mutableStateOf("Ventoy") }
+            var label by remember { mutableStateOf("IGNYX") }
             var reserve by remember { mutableIntStateOf(0) }
             NeonDialog(
                 title = "تجهيز الفلاشة للإقلاع",
@@ -63,7 +63,7 @@ fun AppDialog(dialog: Dialog, a: DialogActions) {
             }
         }
         is Dialog.Update -> NeonDialog(
-            title = "تحديث Ventoy",
+            title = "تحديث نظام الإقلاع",
             body = "النسخة على الفلاشة: ${ltr(dialog.from ?: "غير معروفة")}\nالنسخة بالتطبيق: ${ltr(dialog.to)}\n\n" +
                 "التحديث يبدّل ملفات الإقلاع بس، والأنظمة والملفات اللي على الفلاشة تبقى مثل ما هي.",
             action = "حدّث",
@@ -104,7 +104,7 @@ fun AppDialog(dialog: Dialog, a: DialogActions) {
             var name by remember { mutableStateOf("") }
             NeonDialog(
                 title = "مجلد جديد",
-                body = "رتّب أنظمتك بمجلدات، مثلاً Windows وLinux. Ventoy يلكى الملفات داخل المجلدات تلقائياً.",
+                body = "رتّب أنظمتك بمجلدات، مثلاً Windows وLinux. قائمة الإقلاع تلكى الملفات داخل المجلدات تلقائياً.",
                 action = "سوّي",
                 onConfirm = { a.newFolder(name) },
                 onDismiss = a.dismiss,
@@ -112,7 +112,7 @@ fun AppDialog(dialog: Dialog, a: DialogActions) {
         }
         Dialog.RemoveTheme -> NeonDialog(
             title = "إزالة المظهر؟",
-            body = "قائمة الإقلاع ترجع لشكل Ventoy الأصلي. صورك وأنظمتك ما تتأثر.",
+            body = "قائمة الإقلاع ترجع للشكل الافتراضي. صورك وأنظمتك ما تتأثر.",
             action = "أزل",
             onConfirm = a.removeTheme,
             onDismiss = a.dismiss,

@@ -121,7 +121,11 @@ class InstallAndExFatTest {
 
             // Boot menu theme in a nested folder.
             val theme = testTheme()
-            ThemeWriter.install(vol, theme, ThemeWriter.freshJson(theme))
+            // Written the way Android's org.json does it, with escaped slashes.
+            ThemeWriter.install(vol, theme, ThemeWriter.freshJson(theme).replace("/", "\\/"))
+            val written = String(vol.readFile(BootTheme.CONFIG))
+            assertFalse(written, written.contains("\\/"))
+            assertTrue(written.contains("\"/ventoy/theme/ignyx/theme.txt\""))
             assertTrue(vol.isDirectory("ventoy/theme/ignyx"))
             assertTrue(String(vol.readFile(BootTheme.FILE)).contains("selected_item_pixmap_style"))
             println(String(vol.readFile(BootTheme.CONFIG)))

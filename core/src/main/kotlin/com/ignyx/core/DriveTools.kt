@@ -53,7 +53,7 @@ object DriveTools {
     fun updateVentoy(dev: BlockDevice, images: VentoyImages, onProgress: (Float) -> Unit = {}) {
         val old = dev.readSectors(0, 1)
         val d = VentoyLayout.detect(old, dev.sectorCount)
-        check(d is VentoyLayout.Detection.Ventoy) { "الفلاشة مو مجهّزة بـ Ventoy" }
+        check(d is VentoyLayout.Detection.Ventoy) { "الفلاشة مو مجهّزة للإقلاع" }
         val layout = d.layout
 
         // Boot code only: keep the Ventoy UUID (384..399) and everything from 440 on.

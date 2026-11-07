@@ -225,7 +225,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             steps = listOf("تفريغ الفلاشة", "كتابة محمّل الإقلاع", "كتابة قسم EFI", "فرمتة exFAT", "كتابة جدول الأقسام", "التحقق النهائي"),
             doneMessage = "الفلاشة صارت قابلة للإقلاع. ضيف ملفات ISO وشغّل الحاسبة منها.",
         ) { setStep ->
-            usb.install(label.ifBlank { "Ventoy" }, reserveGb * 1_000_000_000L) { step, p -> setStep(installWeights.getValue(step), p) }
+            usb.install(label.ifBlank { "IGNYX" }, reserveGb * 1_000_000_000L) { step, p -> setStep(installWeights.getValue(step), p) }
         }
     }
 
@@ -235,9 +235,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun confirmUpdate() = runOperation(
-        title = "تحديث Ventoy",
+        title = "تحديث نظام الإقلاع",
         steps = listOf("تحديث ملفات الإقلاع", "التحقق"),
-        doneMessage = "انتحدث Ventoy، وكل الأنظمة اللي على الفلاشة باقية مثل ما هي.",
+        doneMessage = "انتحدث نظام الإقلاع، وكل الأنظمة اللي على الفلاشة باقية مثل ما هي.",
     ) { setStep ->
         usb.updateVentoy { p -> if (p < 1f) setStep(0, p) else setStep(1, 1f) }
     }
@@ -423,6 +423,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setResolution(w: Int, h: Int) = updateTheme { it.copy(width = w, height = h) }
     fun setDim(v: Float) = updateTheme { it.copy(dim = v) }
     fun setShowLogo(v: Boolean) = updateTheme { it.copy(showLogo = v) }
+    fun setTitle(v: String) = updateTheme { it.copy(title = v.take(24)) }
     fun clearPhoto() = updateTheme { it.copy(photo = null) }
 
     fun pickPhoto(uri: Uri) {
@@ -485,7 +486,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(dialog = null) }
         viewModelScope.launch {
             val r = withContext(io) { runCatching { usb.removeTheme() } }
-            say(r.fold({ "رجع مظهر Ventoy الأصلي" }, { e -> e.message ?: "فشل الحذف" }))
+            say(r.fold({ "رجع المظهر الافتراضي" }, { e -> e.message ?: "فشل الحذف" }))
             refresh()
         }
     }

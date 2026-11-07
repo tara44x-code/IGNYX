@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -56,6 +58,7 @@ class ThemeActions(
     val clearPhoto: () -> Unit,
     val setDim: (Float) -> Unit,
     val setLogo: (Boolean) -> Unit,
+    val setTitle: (String) -> Unit,
     val setAccent: (Int) -> Unit,
     val setResolution: (Int, Int) -> Unit,
     val apply: () -> Unit,
@@ -111,8 +114,20 @@ fun ThemeScreen(state: UiState, a: ThemeActions) {
                 )
             }
         }
+        SectionTitle("النص فوق القائمة")
+        OutlinedTextField(
+            value = o.title, onValueChange = a.setTitle, singleLine = true,
+            placeholder = { Text("مثلاً اسمك أو اسم محلك", color = Neon.Muted) },
+            supportingText = { Text("اتركه فارغ إذا ما تريد نص.", color = Neon.Muted) },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = accent, unfocusedBorderColor = Neon.LineStrong,
+                focusedTextColor = Neon.Text, unfocusedTextColor = Neon.Text, cursorColor = accent,
+            ),
+        )
         ActionRow(
-            icon = IgnyxIcon.Usb, title = "شعار IGNYX فوق",
+            icon = IgnyxIcon.Usb, title = "الشعار يم النص",
             onClick = { a.setLogo(!o.showLogo) },
             trailing = { NeonSwitch(o.showLogo, a.setLogo) },
         )
@@ -154,7 +169,7 @@ fun ThemeScreen(state: UiState, a: ThemeActions) {
         )
         if (ready?.info?.hasTheme == true) {
             NeonButton(
-                "رجوع لمظهر Ventoy الأصلي", a.remove,
+                "رجوع للمظهر الافتراضي", a.remove,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                 style = NeonStyle.GhostMagenta, animated = false,
             )

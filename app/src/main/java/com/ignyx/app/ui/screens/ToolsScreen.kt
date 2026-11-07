@@ -70,14 +70,14 @@ fun ToolsScreen(state: UiState, a: ToolsActions) {
                 InfoLine("نظام الملفات", report.fileSystem ?: "—")
                 report.clusterBytes?.let { InfoLine("حجم الكتلة", formatBytes(it.toLong())) }
                 InfoLine("مجهّزة للإقلاع", if (isVentoy) "نعم" else "لا")
-                InfoLine("Ventoy على الفلاشة", ltr(driveVersion ?: "—"))
-                InfoLine("Ventoy بالتطبيق", ltr(state.appVentoyVersion.ifEmpty { "—" }))
+                InfoLine("نسخة الإقلاع على الفلاشة", ltr(driveVersion ?: "—"))
+                InfoLine("نسخة الإقلاع بالتطبيق", ltr(state.appVentoyVersion.ifEmpty { "—" }))
             }
         }
 
         SectionTitle("الفلاشة")
         ActionRow(
-            icon = IgnyxIcon.Refresh, title = "تحديث Ventoy",
+            icon = IgnyxIcon.Refresh, title = "تحديث نظام الإقلاع",
             subtitle = when {
                 !isVentoy -> "يحتاج فلاشة مجهّزة"
                 newer -> "متوفرة نسخة أحدث: ${ltr(state.appVentoyVersion)}. ملفاتك تبقى."
@@ -108,8 +108,7 @@ fun ToolsScreen(state: UiState, a: ToolsActions) {
         SectionTitle("حول")
         Panel {
             Text(
-                "IGNYX مفتوح المصدر بترخيص GPLv3، ومبني على صيغة الإقلاع مال Ventoy (github.com/ventoy/Ventoy). " +
-                    "ملفات الإقلاع مأخوذة بدون تعديل من إصدار Ventoy الرسمي.",
+                "IGNYX مفتوح المصدر بترخيص GPLv3. ملفات الإقلاع من مشروع Ventoy المفتوح المصدر (GPLv3)، بدون تعديل.",
                 color = Neon.Muted, style = MaterialTheme.typography.bodyMedium,
             )
             Text(ltr("github.com/tara44x-code/IGNYX"), color = Neon.Cyan, style = MaterialTheme.typography.bodyMedium)
