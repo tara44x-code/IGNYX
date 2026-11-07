@@ -80,7 +80,7 @@ class BootTheme(
 object ThemeWriter {
 
     /** A position past the edge of the screen, so the version line is not drawn. */
-    const val HIDDEN_POS = "105%"
+    const val HIDDEN_POS = "300%"
 
     /**
      * Writes the theme files and [ventoyJson] (which must already contain the theme section,
