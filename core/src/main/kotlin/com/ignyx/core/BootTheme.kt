@@ -20,6 +20,8 @@ class BootTheme(
     val nightColor: String = "#05060F",
     /** Colour of the small version line the boot loader prints in a corner. */
     val versionColor: String = "#3A4270",
+    /** Move the boot loader's version line off the visible screen. */
+    val hideVersion: Boolean = false,
     val menuLeftPct: Int = 18,
     val menuTopPct: Int = 30,
     val menuWidthPct: Int = 64,
@@ -77,6 +79,9 @@ class BootTheme(
 
 object ThemeWriter {
 
+    /** A position past the edge of the screen, so the version line is not drawn. */
+    const val HIDDEN_POS = "105%"
+
     /**
      * Writes the theme files and [ventoyJson] (which must already contain the theme section,
      * merged with any settings the user had) to the Ventoy data partition.
@@ -117,7 +122,7 @@ object ThemeWriter {
         |    "file": "/${BootTheme.FILE}",
         |    "gfxmode": "${theme.gfxmode}",
         |    "display_mode": "GUI",
-        |    "ventoy_color": "${theme.versionColor}"
+        |    "ventoy_color": "${theme.versionColor}"${if (theme.hideVersion) ",\n    \"ventoy_left\": \"${HIDDEN_POS}\",\n    \"ventoy_top\": \"${HIDDEN_POS}\"" else ""}
         |  }
         |}
         |""".trimMargin()
